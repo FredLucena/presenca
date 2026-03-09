@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verificação de Presença - FICR</title>
+    <title>Verificação de Presença</title>
     <style>
         body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f4f4; text-align: center; }
         .card { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 90%; }
@@ -22,8 +22,8 @@
 
     <script>
         // COORDENADAS DA FICR (Av. Lins Petit)
-        const FICR_LAT = -8.040812;  //-8.069450 
-        const FICR_LON = -34.940038; //-34.894100
+        const LATITUDE = -8.040812;  //-8.069450 
+        const LONGITUDE = -34.940038; //-34.894100
         const RAIO_MAXIMO_METROS = 200; // Raio de tolerância (ajustável)
         const LINK_FORMULARIO = "https://forms.gle/gwjvD3YQVpB5Fsa69";
 
@@ -47,7 +47,7 @@
             }
 
             navigator.geolocation.getCurrentPosition((pos) => {
-                const distancia = calcularDistancia(pos.coords.latitude, pos.coords.longitude, FICR_LAT, FICR_LON);
+                const distancia = calcularDistancia(pos.coords.latitude, pos.coords.longitude, LATITUDE, LONGITUDE);
                 
                 if (distancia <= RAIO_MAXIMO_METROS) {
                     status.style.color = "green";
