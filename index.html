@@ -1,1 +1,66 @@
 
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificação de Presença - FICR</title>
+    <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f4f4; text-align: center; }
+        .card { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 90%; }
+        button { background: #004a99; color: white; border: none; padding: 15px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        #status { margin-top: 20px; color: #555; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>📍 Verificação de Local local</h2>
+        <p>Para acessar o formulário, precisamos confirmar que você está nas dependências da <b>FICR</b>.</p>
+        <button onclick="verificarLocalizacao()">Validar minha presença</button>
+        <p id="status"></p>
+    </div>
+
+    <script>
+        // COORDENADAS DA FICR (Av. Lins Petit)
+        const FICR_LAT = -8.040812;  //-8.069450 
+        const FICR_LON = -34.940038; //-34.894100
+        const RAIO_MAXIMO_METROS = 200; // Raio de tolerância (ajustável)
+        const LINK_FORMULARIO = "https://forms.gle/gwjvD3YQVpB5Fsa69";
+
+        function calcularDistancia(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; // Raio da Terra em metros
+            const φ1 = lat1 * Math.PI/180;
+            const φ2 = lat2 * Math.PI/180;
+            const Δφ = (lat2-lat1) * Math.PI/180;
+            const Δλ = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        function verificarLocalizacao() {
+            const status = document.getElementById('status');
+            status.innerText = "Localizando seu dispositivo...";
+
+            if (!navigator.geolocation) {
+                status.innerText = "Seu navegador não suporta geolocalização.";
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const distancia = calcularDistancia(pos.coords.latitude, pos.coords.longitude, FICR_LAT, FICR_LON);
+                
+                if (distancia <= RAIO_MAXIMO_METROS) {
+                    status.style.color = "green";
+                    status.innerText = "Localização confirmada! Redirecionando...";
+                    setTimeout(() => { window.location.href = LINK_FORMULARIO; }, 1500);
+                } else {
+                    status.style.color = "red";
+                    status.innerText = "Acesso Negado: Você não parece estar na FICR.";
+                }
+            }, (err) => {
+                status.innerText = "Erro: Você precisa permitir o acesso à localização.";
+            }, { enableHighAccuracy: true });
+        }
+    </script>
+</body>
+</html>
