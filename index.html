@@ -24,13 +24,16 @@
         const LATITUDE = -8.040812;  //-8.069450
         const LONGITUDE = -34.940038; //-34.894100
         const RAIO_MAXIMO_METROS = 200; // Raio de tolerância (ajustável)
-        
-        // ================= LINK E HORÁRIO PERMITIDO =================
-        // LINK E HORÁRIO PERMITIDO
+
+        // =================== LINK DE ACESSO 
         const LINK_FORMULARIO = "https://forms.gle/ALjx1AxshGAx7WLo6";
-        const HORA_INICIO = { h: 11, m: 00 };  
-        const HORA_FIM    = { h: 11, m: 30 };  
-        // ===========================================================
+
+        // =================== DATA PERMITIDA
+        const DATA_EVENTO = { dia: 27, mes: 8, ano: 2026 };
+
+        // =================== HORÁRIO PERMITIDO
+        const HORA_INICIO = { h: 11, m: 0 };
+        const HORA_FIM    = { h: 11, m: 30 };
 
         function formatarHora(hora) {
             const hh = String(hora.h).padStart(2, '0');
@@ -38,14 +41,31 @@
             return `${hh}:${mm}`;
         }
 
-        const MENSAGEM_JANELA = `A verificação de presença só está disponível das ${formatarHora(HORA_INICIO)} às ${formatarHora(HORA_FIM)}.`;
+        function formatarData(data) {
+            const dd = String(data.dia).padStart(2, '0');
+            const mm = String(data.mes).padStart(2, '0');
+            return `${dd}/${mm}/${data.ano}`;
+        }
 
-        function dentroDaJanelaDeHorario() {
+        const MENSAGEM_JANELA = `A verificação de presença só está disponível em ${formatarData(DATA_EVENTO)}, das ${formatarHora(HORA_INICIO)} às ${formatarHora(HORA_FIM)}.`;
+
+        function dataCorreta() {
+            const agora = new Date();
+            return agora.getDate() === DATA_EVENTO.dia &&
+                   (agora.getMonth() + 1) === DATA_EVENTO.mes &&
+                   agora.getFullYear() === DATA_EVENTO.ano;
+        }
+
+        function dentroDoHorario() {
             const agora = new Date();
             const minutosAgora = agora.getHours() * 60 + agora.getMinutes();
             const minutosInicio = HORA_INICIO.h * 60 + HORA_INICIO.m;
             const minutosFim = HORA_FIM.h * 60 + HORA_FIM.m;
             return minutosAgora >= minutosInicio && minutosAgora <= minutosFim;
+        }
+
+        function dentroDaJanelaDeHorario() {
+            return dataCorreta() && dentroDoHorario();
         }
 
         function calcularDistancia(lat1, lon1, lat2, lon2) {
@@ -105,7 +125,7 @@
                 const status = document.getElementById('status');
                 const btn = document.getElementById('btnValidar');
                 status.style.color = "red";
-                status.innerText = "Disponível apenas das " + formatarHora(HORA_INICIO) + " às " + formatarHora(HORA_FIM) + ".";
+                status.innerText = MENSAGEM_JANELA;
                 btn.disabled = true;
             }
         });
