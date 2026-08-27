@@ -26,9 +26,19 @@
         const RAIO_MAXIMO_METROS = 200; // Raio de tolerância (ajustável)
         const LINK_FORMULARIO = "https://forms.gle/ALjx1AxshGAx7WLo6";
 
+        // ===========================================================
         // JANELA DE HORÁRIO PERMITIDA (horário local do dispositivo)
-        const HORA_INICIO = { h: 8, m: 0 };   // 08:00
-        const HORA_FIM    = { h: 8, m: 40 };  // 08:40
+        const HORA_INICIO = { h: 8, m: 0 };  
+        const HORA_FIM    = { h: 8, m: 15 };  
+        // ===========================================================
+
+        function formatarHora(hora) {
+            const hh = String(hora.h).padStart(2, '0');
+            const mm = String(hora.m).padStart(2, '0');
+            return `${hh}:${mm}`;
+        }
+
+        const MENSAGEM_JANELA = `A verificação de presença só está disponível das ${formatarHora(HORA_INICIO)} às ${formatarHora(HORA_FIM)}.`;
 
         function dentroDaJanelaDeHorario() {
             const agora = new Date();
@@ -54,7 +64,7 @@
             // Verifica a janela de horário antes de qualquer outra coisa
             if (!dentroDaJanelaDeHorario()) {
                 status.style.color = "red";
-                status.innerHTML = "<p>Acesso Negado!</p><p>A verificação de presença só está disponível das 08:00 às 08:15.</p>";
+                status.innerHTML = `<p>Acesso Negado!</p><p>${MENSAGEM_JANELA}</p>`;
                 return;
             }
 
@@ -69,7 +79,7 @@
                 // caso o usuário tenha demorado para conceder a permissão.
                 if (!dentroDaJanelaDeHorario()) {
                     status.style.color = "red";
-                    status.innerHTML = "<p>Acesso Negado!</p><p>A verificação de presença só está disponível das 08:00 às 08:15.</p>";
+                    status.innerHTML = `<p>Acesso Negado!</p><p>${MENSAGEM_JANELA}</p>`;
                     return;
                 }
 
@@ -95,7 +105,7 @@
                 const status = document.getElementById('status');
                 const btn = document.getElementById('btnValidar');
                 status.style.color = "red";
-                status.innerText = "Disponível apenas das 08:00 às 08:15.";
+                status.innerText = "Disponível apenas das " + formatarHora(HORA_INICIO) + " às " + formatarHora(HORA_FIM) + ".";
                 btn.disabled = true;
             }
         });
