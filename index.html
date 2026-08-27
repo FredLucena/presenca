@@ -9,6 +9,7 @@
         body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #f4f4f4; text-align: center; }
         .card { background: white; padding: 2rem; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 90%; }
         button { background: #004a99; color: white; border: none; padding: 15px 25px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:disabled { background: #999; cursor: not-allowed; }
         #status { margin-top: 20px; color: #555; }
     </style>
 </head>
@@ -16,18 +17,28 @@
     <div class="card">
         <h2>📍Verificação de Local </h2>
         <p>Para acessar o formulário, precisamos confirmar se você está no local do evento.</p>
-        <button onclick="verificarLocalizacao()">Validar minha presença</button>
+        <button id="btnValidar" onclick="verificarLocalizacao()">Validar minha presença</button>
         <p id="status"></p>
     </div>
-
     <script>
         // COORDENADAS DA FICR (Av. Lins Petit)
-        const LATITUDE = -8.040812;  //-8.069450 
+        const LATITUDE = -8.040812;  //-8.069450
         const LONGITUDE = -34.940038; //-34.894100
         const RAIO_MAXIMO_METROS = 200; // Raio de tolerância (ajustável)
+        const LINK_FORMULARIO = "https://forms.gle/ALjx1AxshGAx7WLo6";
 
-        const LINK_FORMULARIO = "https://forms.gle/ALjx1AxshGAx7WLo6";   
-     
+        // JANELA DE HORÁRIO PERMITIDA (horário local do dispositivo)
+        const HORA_INICIO = { h: 8, m: 0 };   // 8:00
+        const HORA_FIM    = { h: 8, m: 15 };  // 8:15
+
+        function dentroDaJanelaDeHorario() {
+            const agora = new Date();
+            const minutosAgora = agora.getHours() * 60 + agora.getMinutes();
+            const minutosInicio = HORA_INICIO.h * 60 + HORA_INICIO.m;
+            const minutosFim = HORA_FIM.h * 60 + HORA_FIM.m;
+            return minutosAgora >= minutosInicio && minutosAgora <= minutosFim;
+        }
+
         function calcularDistancia(lat1, lon1, lat2, lon2) {
             const R = 6371e3; // Raio da Terra em metros
             const φ1 = lat1 * Math.PI/180;
@@ -40,16 +51,31 @@
 
         function verificarLocalizacao() {
             const status = document.getElementById('status');
-            status.innerText = "Localizando seu dispositivo...";
 
+            // Verifica a janela de horário antes de qualquer outra coisa
+            if (!dentroDaJanelaDeHorario()) {
+                status.style.color = "red";
+                status.innerHTML = "<p>Acesso Negado!</p><p>A verificação de presença só está disponível das 11:00 às 11:30.</p>";
+                return;
+            }
+
+            status.style.color = "#555";
+            status.innerText = "Localizando seu dispositivo...";
             if (!navigator.geolocation) {
                 status.innerText = "Seu navegador não suporta geolocalização.";
                 return;
             }
-
             navigator.geolocation.getCurrentPosition((pos) => {
+                // Revalida o horário no momento em que a localização retorna,
+                // caso o usuário tenha demorado para conceder a permissão.
+                if (!dentroDaJanelaDeHorario()) {
+                    status.style.color = "red";
+                    status.innerHTML = "<p>Acesso Negado!</p><p>A verificação de presença só está disponível das 11:00 às 11:30.</p>";
+                    return;
+                }
+
                 const distancia = calcularDistancia(pos.coords.latitude, pos.coords.longitude, LATITUDE, LONGITUDE);
-                
+
                 if (distancia <= RAIO_MAXIMO_METROS) {
                     status.style.color = "green";
                     status.innerText = "Localização confirmada! Redirecionando...";
@@ -63,6 +89,18 @@
                 status.innerText = "Erro: Você precisa permitir o acesso à localização.";
             }, { enableHighAccuracy: true });
         }
+
+        // Ao carregar a página, se estiver fora da janela, avisa e desabilita o botão
+        window.addEventListener('DOMContentLoaded', () => {
+            if (!dentroDaJanelaDeHorario()) {
+                const status = document.getElementById('status');
+                const btn = document.getElementById('btnValidar');
+                status.style.color = "red";
+                status.innerText = "Disponível apenas das 11:00 às 11:30.";
+                btn.disabled = true;
+            }
+        });
     </script>
 </body>
 </html>
+
