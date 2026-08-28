@@ -26,7 +26,7 @@
         const RAIO_MAXIMO_METROS = 200; // Raio de tolerância (ajustável)
 
         // =================== LINK DE ACESSO 
-        const LINK_FORMULARIO = "" //"https://forms.gle/ahCVNEJYpYsGqX3GA";
+        const LINK_FORMULARIO = "" // "https://forms.gle/ahCVNEJYpYsGqX3GA";
 
         // =================== DATA PERMITIDA
         const DATA_EVENTO = { dia: 27, mes: 8, ano: 2026 };
@@ -78,8 +78,74 @@
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
+        // =================== DETECÇÃO HEURÍSTICA DE GPS SIMULADO ===================
+        // Importante: o navegador NÃO tem acesso à flag de "mock location" do sistema
+        // operacional (isso só existe para apps nativos). O que segue são sinais
+        // indiretos, colhidos a partir de várias leituras de posição, que costumam
+        // aparecer em apps de localização falsa. Não é 100% infalível, mas eleva bastante
+        // a dificuldade de burlar o sistema com os aplicativos "fake GPS" mais comuns.
+        const NUM_AMOSTRAS = 4;           // quantas leituras coletar antes de decidir
+        const TEMPO_MAXIMO_COLETA_MS = 9000; // tempo máximo total esperando leituras
+        const LIMIAR_SUSPEITA = 2;        // quantos sinais de alerta reprovam a leitura
+
+        function avaliarAmostras(amostras) {
+            let suspeita = 0;
+
+            // 1) Precisão "boa demais" ou artificialmente redonda.
+            //    GPS real ao ar livre raramente fica abaixo de ~3-5m de precisão;
+            //    muitos apps de localização falsa cravam valores baixos e fixos.
+            const precisaoMedia = amostras.reduce((s, a) => s + a.coords.accuracy, 0) / amostras.length;
+            if (precisaoMedia <= 3) {
+                suspeita++;
+            }
+
+            // 2) Zero variação entre leituras. GPS real quase sempre tem um pequeno
+            //    "jitter" nas últimas casas decimais, mesmo parado.
+            const semNenhumaVariacao = amostras.every((a) =>
+                a.coords.latitude === amostras[0].coords.latitude &&
+                a.coords.longitude === amostras[0].coords.longitude
+            );
+            if (semNenhumaVariacao && amostras.length > 1) {
+                suspeita++;
+            }
+
+            // 3) Ausência total de dados de movimento (altitude, velocidade, direção).
+            //    Apps de localização falsa tipicamente não simulam esses campos.
+            const semDadosDeMovimento = amostras.every(a =>
+                a.coords.altitude === null &&
+                a.coords.speed === null &&
+                a.coords.heading === null
+            );
+            if (semDadosDeMovimento) {
+                suspeita++;
+            }
+
+            // 4) "Teleporte": deslocamento fisicamente impossível entre duas leituras
+            //    próximas no tempo (indício de alternância entre localização real e falsa).
+            for (let i = 1; i < amostras.length; i++) {
+                const dist = calcularDistancia(
+                    amostras[i - 1].coords.latitude, amostras[i - 1].coords.longitude,
+                    amostras[i].coords.latitude, amostras[i].coords.longitude
+                );
+                const deltaSegundos = (amostras[i].timestamp - amostras[i - 1].timestamp) / 1000;
+                if (deltaSegundos > 0 && (dist / deltaSegundos) > 50) { // > ~180 km/h
+                    suspeita += 2;
+                }
+            }
+
+            // 5) Timestamp "congelado" entre leituras (comum quando o valor é injetado
+            //    manualmente em vez de vir de um sensor real).
+            const timestampsIguais = amostras.every((a, i) => i === 0 || a.timestamp === amostras[i - 1].timestamp);
+            if (timestampsIguais && amostras.length > 1) {
+                suspeita++;
+            }
+
+            return suspeita >= LIMIAR_SUSPEITA;
+        }
+
         function verificarLocalizacao() {
             const status = document.getElementById('status');
+            const btn = document.getElementById('btnValidar');
 
             // Verifica a janela de horário antes de qualquer outra coisa
             if (!dentroDaJanelaDeHorario()) {
@@ -88,35 +154,79 @@
                 return;
             }
 
-            status.style.color = "#555";
-            status.innerText = "Localizando seu dispositivo...";
             if (!navigator.geolocation) {
                 status.innerText = "Seu navegador não suporta geolocalização.";
                 return;
             }
-            navigator.geolocation.getCurrentPosition((pos) => {
-                // Revalida o horário no momento em que a localização retorna,
-                // caso o usuário tenha demorado para conceder a permissão.
+
+            btn.disabled = true;
+            status.style.color = "#555";
+            status.innerText = "Confirmando sua localização, aguarde alguns segundos...";
+
+            const amostras = [];
+            let watchId = null;
+            let finalizado = false;
+
+            const finalizarComErro = (mensagemHtml) => {
+                if (finalizado) return;
+                finalizado = true;
+                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+                btn.disabled = false;
+                status.style.color = "red";
+                status.innerHTML = mensagemHtml;
+            };
+
+            const finalizarComSucesso = () => {
+                if (finalizado) return;
+                finalizado = true;
+                if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+
+                // Revalida o horário, caso a coleta tenha demorado
                 if (!dentroDaJanelaDeHorario()) {
+                    btn.disabled = false;
                     status.style.color = "red";
                     status.innerHTML = `<p>Acesso Negado!</p><p>${MENSAGEM_JANELA}</p>`;
                     return;
                 }
 
-                const distancia = calcularDistancia(pos.coords.latitude, pos.coords.longitude, LATITUDE, LONGITUDE);
+                if (avaliarAmostras(amostras)) {
+                    finalizarComErro("<p>Acesso Negado!</p><p>Não foi possível confirmar uma localização de GPS válida neste dispositivo.</p>");
+                    return;
+                }
+
+                const ultima = amostras[amostras.length - 1];
+                const distancia = calcularDistancia(ultima.coords.latitude, ultima.coords.longitude, LATITUDE, LONGITUDE);
 
                 if (distancia <= RAIO_MAXIMO_METROS) {
                     status.style.color = "green";
                     status.innerText = "Localização confirmada! Redirecionando...";
                     setTimeout(() => { window.location.href = LINK_FORMULARIO; }, 1500);
                 } else {
+                    btn.disabled = false;
                     status.style.color = "red";
                     status.innerHTML = "<p>Acesso Negado!</p><p>Você não parece estar no local do evento.</p>";
-                    //status.innerText = "Acesso Negado! Você não parece estar no local do evento.";
+                }
+            };
+
+            watchId = navigator.geolocation.watchPosition((pos) => {
+                amostras.push(pos);
+                if (amostras.length >= NUM_AMOSTRAS) {
+                    finalizarComSucesso();
                 }
             }, (err) => {
-                status.innerText = "Erro: Você precisa permitir o acesso à localização.";
-            }, { enableHighAccuracy: true });
+                finalizarComErro("Erro: Você precisa permitir o acesso à localização.");
+            }, { enableHighAccuracy: true, maximumAge: 0, timeout: TEMPO_MAXIMO_COLETA_MS });
+
+            // Segurança: se o tempo máximo passar sem amostras suficientes,
+            // decide com o que já foi coletado (ou reporta erro se nada chegou).
+            setTimeout(() => {
+                if (finalizado) return;
+                if (amostras.length > 0) {
+                    finalizarComSucesso();
+                } else {
+                    finalizarComErro("Não foi possível obter sua localização a tempo. Tente novamente.");
+                }
+            }, TEMPO_MAXIMO_COLETA_MS);
         }
 
         // Ao carregar a página, se estiver fora da janela, avisa e desabilita o botão
